@@ -1,5 +1,10 @@
 const { writeJson, readJson } = require("fs-extra");
-
+const domain = process.env.MAIL_DOMAIN;
+const apiKey = process.env.MAIL_API_KEY;
+const mailgun = require("mailgun-js")({
+  apiKey: apiKey,
+  domain: domain,
+});
 async function readDB(filepath) {
   try {
     const fileJson = await readJson(filepath);
@@ -23,4 +28,28 @@ const err = (msg) => {
   return next(e);
 };
 
-module.exports = { readDB, writeDB, err };
+function mg(
+  subject = "demo mail",
+  content = "Bello World",
+  attachment = "",
+  emailto
+) {
+  return mailgun.messages().send(
+    {
+      to: emailto,
+      subject: subject,
+      text: content,
+      from: `postmaster@${domain}`,
+    },
+    (err, info) => {
+      if (err) {
+        console.log(`Error: ${err}`);
+      } else {
+        console.log("sent");
+        console.log(`Response: ${info}`);
+      }
+    }
+  );
+}
+
+module.exports = { readDB, writeDB, err, mg };

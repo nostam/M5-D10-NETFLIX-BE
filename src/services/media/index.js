@@ -1,7 +1,7 @@
 const express = require("express");
 const { writeFile, createReadStream, createWriteStream } = require("fs-extra");
 const { pipeline } = require("stream");
-const { readDB, writeDB, err } = require("../../lib");
+const { readDB, writeDB, err, mg } = require("../../lib");
 const { join } = require("path");
 const uniqid = require("uniqid");
 const { check, validationResult } = require("express-validator");
@@ -75,8 +75,24 @@ const validateReq = [
 router.get("/", async (req, res, next) => {
   try {
     const db = await readDB(mediaJson);
-    if (!req.query) {
-      res.status(200).send(db);
+    if (!req.query.title && !req.query.type && !req.query.year) {
+      // const ratedDB = db.map((entry) => async () => {
+      //   const response = await axios.get(
+      //     `${omdbBaseUrl}i=${entry.imdbID}&${process.env.OMDB_API_KEY}`
+      //   );
+      //   const rating = await response.data.imdbRating;
+      //   entry.rating = rating;
+      // });
+      // const reviews = await readDB(reviewsJson);
+      // const ratedDB = db.forEach((entry) => {
+      //   const rate = reviews.find((review) => review.elementID === entry.imdbID)
+      //     .rate;
+      //   entry.rating = rate;
+      // });
+      // console.log(ratedDB);
+      // ratedDB.sort((a, b) => b.rating - a.rating);
+      // res.status(200).send(ratedDB);
+      res.status(db);
     } else if (req.query.title) {
       const result = db.filter((entry) =>
         entry.Title.toLowerCase().includes(req.query.title.toLocaleLowerCase())
@@ -208,6 +224,68 @@ router.post("/", validateReq, async (req, res, next) => {
     next(error);
   }
 });
+
+router.post(
+  "/sendCatalogue",
+  [check("title").isString().exists(), check("email").isEmail().exists()],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        err(errors.array());
+      } else {
+        const db = await readDB(mediaJson);
+        const result = db.filter((entry) =>
+          entry.Title.toLowerCase().includes(req.body.title.toLowerCase())
+        );
+        console.log(result);
+
+        const printer = new pdfPrinter(fonts);
+        function buildTableBody(data, columns) {
+          const body = [];
+          body.push(columns);
+          data.forEach(function (row) {
+            const dataRow = [];
+            columns.forEach(function (column) {
+              dataRow.push(row[column].toString());
+            });
+            body.push(dataRow);
+          });
+          return body;
+        }
+
+        function table(data, columns) {
+          return {
+            table: {
+              headerRows: 1,
+              body: buildTableBody(data, columns),
+            },
+          };
+        }
+
+        const pdfDefinition = {
+          content: [
+            { text: "Dynamic parts", style: "header" },
+            table(result, ["Title", "Year", "imdbID", "Type", "Poster"]),
+          ],
+          defaultStyle: {
+            font: "GenShinGothic",
+          },
+        };
+
+        const pdfDoc = printer.createPdfKitDocument(pdfDefinition);
+        const pdfPath = join("public", "media.pdf");
+        pdfDoc.pipe(createWriteStream(pdfPath));
+        pdfDoc.end();
+
+        mg("Requested Catalog", JSON.stringify(result), "", req.body.email);
+        res.send();
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.post("/:id/upload", upload.single("Poster"), async (req, res, next) => {
   try {
