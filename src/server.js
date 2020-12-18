@@ -35,7 +35,7 @@ const corsOptions = {
 };
 
 server.use(helmet());
-server.use(cors());
+server.use(cors(corsOptions));
 server.use(express.json());
 server.use(loggerMiddleware);
 
