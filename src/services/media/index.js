@@ -2,7 +2,7 @@ const express = require("express");
 const { writeFile, createReadStream, createWriteStream } = require("fs-extra");
 const { pipeline } = require("stream");
 const { readDB, writeDB, err, mg } = require("../../lib");
-const { join } = require("path");
+const { join, extname } = require("path");
 const uniqid = require("uniqid");
 const { check, validationResult } = require("express-validator");
 const router = express.Router();
@@ -30,28 +30,27 @@ const storage = new CloudinaryStorage({
     allowedFormats: ["jpg", "png"],
   },
 });
-const upload = multer({ storage: storage });
-// const upload = multer({
-//   storage: storage,
-//   fileFilter: function (req, file, callback) {
-//     const ext = path.extname(file.originalname);
-//     const mime = file.mimetype;
-//     if (
-//       ext !== ".jpg" &&
-//       ext !== ".jpeg" &&
-//       ext !== ".png" &&
-//       mime !== "image/png" &&
-//       mime !== "image/jpg" &&
-//       mime !== "image/jpeg"
-//     ) {
-//       return callback(new Error("Only images under 200kb are allowed"));
-//     }
-//     callback(null, true);
-//   },
-//   limits: { fileSize: 200000 },
-// });
+const uploadCloudinary = multer({ storage: storage });
+const upload = multer({
+  fileFilter: function (req, file, callback) {
+    const ext = extname(file.originalname);
+    const mime = file.mimetype;
+    if (
+      ext !== ".jpg" &&
+      ext !== ".jpeg" &&
+      ext !== ".png" &&
+      mime !== "image/png" &&
+      mime !== "image/jpg" &&
+      mime !== "image/jpeg"
+    ) {
+      return callback(new Error("Only images under 200kb are allowed"));
+    }
+    callback(null, true);
+  },
+  limits: { fileSize: 200000 },
+});
 
-// const posterImgPath = join(__dirname, "../../../public/img/media");
+const posterImgPath = join(__dirname, "../../../public/img/media");
 const omdbBaseUrl = "http://www.omdbapi.com/?";
 const mediaJson = join(__dirname, "media.json");
 const reviewsJson = join(__dirname, "../reviews/reviews.json");
@@ -287,23 +286,52 @@ router.post(
   }
 );
 
+router.post(
+  "/:id/uploadCloudinary",
+  uploadCloudinary.single("Poster"),
+  async (req, res, next) => {
+    try {
+      // const filenameArr = req.file.originalname.split(".");
+      // const filename = req.params.id + "." + filenameArr[filenameArr.length - 1];
+      const db = await readDB(mediaJson);
+      const movie = db.some((entry) => entry.imdbID === req.params.id);
+      // const src = new URL(`http://${req.get("host")}/img/products/${filename}`)
+      //   .href;
+      console.log("uploading...");
+      if (movie) {
+        // await writeFile(path.join(posterImgPath, filename), req.file.buffer);
+        const newDB = db.map((entry) =>
+          entry.imdbID === req.params.id
+            ? { ...entry, Poster: req.file.path }
+            : entry
+        );
+        await writeDB(newDB, mediaJson);
+        res.status(201).json(newDB);
+      } else {
+        err("Invalid IMDB ID");
+      }
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+);
+
 router.post("/:id/upload", upload.single("Poster"), async (req, res, next) => {
   try {
-    // const filenameArr = req.file.originalname.split(".");
-    // const filename = req.params.id + "." + filenameArr[filenameArr.length - 1];
+    const filenameArr = req.file.originalname.split(".");
+    const filename = req.params.id + "." + filenameArr[filenameArr.length - 1];
     const db = await readDB(mediaJson);
     const movie = db.some((entry) => entry.imdbID === req.params.id);
-    // const src = new URL(`http://${req.get("host")}/img/products/${filename}`)
+    const src = new URL(`http://${req.get("host")}/img/products/${filename}`);
     //   .href;
     console.log("uploading...");
     if (movie) {
-      // await writeFile(path.join(posterImgPath, filename), req.file.buffer);
+      await writeFile(join(posterImgPath, filename), req.file.buffer);
       const newDB = db.map((entry) =>
-        entry.imdbID === req.params.id
-          ? { ...entry, Poster: req.file.path }
-          : entry
+        entry.imdbID === req.params.id ? { ...entry, Poster: src } : entry
       );
-      await writeDB(newDB, productsJson);
+      await writeDB(newDB, mediaJson);
       res.status(201).json(newDB);
     } else {
       err("Invalid IMDB ID");
