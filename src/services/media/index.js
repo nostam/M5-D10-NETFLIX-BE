@@ -52,6 +52,7 @@ const upload = multer({ storage: storage });
 // });
 
 // const posterImgPath = join(__dirname, "../../../public/img/media");
+const omdbBaseUrl = "http://www.omdbapi.com/?";
 const mediaJson = join(__dirname, "media.json");
 const reviewsJson = join(__dirname, "../reviews/reviews.json");
 
@@ -112,13 +113,11 @@ router.get("/catalogue", async (req, res, next) => {
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const db = await readDB(mediaJson);
-    const movie = db.find((entry) => entry.imdbID === req.params.id);
-    if (Object.keys(movie).length > 0) {
-      res.status(200).send(movie);
-    } else {
-      err("movie not found");
-    }
+    const response = await axios.get(
+      `${omdbBaseUrl}i=${req.params.id}&${process.env.OMDB_API_KEY}`
+    );
+    const movie = response.data;
+    res.send(movie);
   } catch (err) {
     next(err);
   }
