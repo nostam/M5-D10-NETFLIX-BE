@@ -91,7 +91,7 @@ router.get("/", async (req, res, next) => {
       // console.log(ratedDB);
       // ratedDB.sort((a, b) => b.rating - a.rating);
       // res.status(200).send(ratedDB);
-      res.status(db);
+      res.send(db);
     } else if (req.query.title) {
       const result = db.filter((entry) =>
         entry.Title.toLowerCase().includes(req.query.title.toLocaleLowerCase())
