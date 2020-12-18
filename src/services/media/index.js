@@ -83,9 +83,39 @@ router.get("/", async (req, res, next) => {
 
 router.get("/catalogue", async (req, res, next) => {
   try {
+    const db = await readDB(mediaJson);
+    const content = db.filter((entry) =>
+      entry.Title.toLowerCase().includes(req.query.title.toLowerCase())
+    );
+
     const printer = new pdfPrinter(fonts);
+    function buildTableBody(data, columns) {
+      const body = [];
+      body.push(columns);
+      data.forEach(function (row) {
+        const dataRow = [];
+        columns.forEach(function (column) {
+          dataRow.push(row[column].toString());
+        });
+        body.push(dataRow);
+      });
+      return body;
+    }
+
+    function table(data, columns) {
+      return {
+        table: {
+          headerRows: 1,
+          body: buildTableBody(data, columns),
+        },
+      };
+    }
+
     const pdfDefinition = {
-      content: [{}],
+      content: [
+        { text: "Dynamic parts", style: "header" },
+        table(content, ["Title", "Year", "imdbID", "Type", "Poster"]),
+      ],
       defaultStyle: {
         font: "GenShinGothic",
       },
