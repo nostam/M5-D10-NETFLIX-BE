@@ -75,7 +75,19 @@ const validateReq = [
 router.get("/", async (req, res, next) => {
   try {
     const db = await readDB(mediaJson);
-    res.status(200).send(db);
+    if (!req.query) {
+      res.status(200).send(db);
+    } else if (req.query.title) {
+      const result = db.filter((entry) =>
+        entry.Title.toLowerCase().includes(req.query.title.toLocaleLowerCase())
+      );
+      res.send(result);
+    } else if (req.query.year) {
+      const result = db.filter(
+        (entry) => entry.year.toString() === req.query.year.toString()
+      );
+      res.send(result);
+    }
   } catch (err) {
     next(err);
   }
